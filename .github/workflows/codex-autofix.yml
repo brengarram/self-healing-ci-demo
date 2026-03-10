@@ -60,7 +60,7 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: .codex/prompts/fix-ci.prompt.md
+          prompt-file: .codex/commands/fix-ci.md
           sandbox: workspace-write
 
       - name: Run tests after fix
