@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   autofix:
@@ -73,3 +74,22 @@ jobs:
           git add -A
           git commit -m "autofix: make CI green" || exit 0
           git push origin HEAD:${{ github.event.inputs.branch }}
+      - name: Re-dispatch CI on fixed branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            -X POST \
+            repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches \
+            -f ref=main \
+            -f inputs[branch]=${{ github.event.inputs.branch }}
+
+      - name: Re-dispatch Grade on fixed branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            -X POST \
+            repos/${{ github.repository }}/actions/workflows/grade.yml/dispatches \
+            -f ref=main \
+            -f inputs[branch]=${{ github.event.inputs.branch }}

@@ -3,6 +3,12 @@ name: Grade PR
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to grade"
+        required: true
+        default: "main"
 
 jobs:
   grade:
@@ -12,8 +18,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout PR HEAD
+      - name: Checkout target branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,10 +29,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v1
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --dev
 
       - name: Run tests
         id: tests
@@ -37,8 +45,15 @@ jobs:
       - name: Check whether tests folder changed
         id: testfiles
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^tests/' || true)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE="origin/main"
+            git fetch origin main --depth=1
+          else
+            BASE="origin/${{ github.base_ref }}"
+            git fetch origin ${{ github.base_ref }} --depth=1
+          fi
+
+          CHANGED=$(git diff --name-only $BASE...HEAD | grep '^tests/' || true)
           if [ -z "$CHANGED" ]; then
             echo "changed_tests=false" >> $GITHUB_OUTPUT
           else
@@ -48,30 +63,51 @@ jobs:
       - name: Count changed lines
         id: diffsize
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
-          LINES=$(git diff --shortstat origin/${{ github.base_ref }}...HEAD | grep -o '[0-9]\+ insertion\|[0-9]\+ deletion' | awk '{sum += $1} END {print sum+0}')
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE="origin/main"
+            git fetch origin main --depth=1
+          else
+            BASE="origin/${{ github.base_ref }}"
+            git fetch origin ${{ github.base_ref }} --depth=1
+          fi
+
+          LINES=$(git diff --shortstat $BASE...HEAD | grep -o '[0-9]\+ insertion\|[0-9]\+ deletion' | awk '{sum += $1} END {print sum+0}')
           echo "lines=$LINES" >> $GITHUB_OUTPUT
 
       - name: Calculate score
         id: score
         run: |
           SCORE=0
-
           if [ "${{ steps.tests.outputs.exit_code }}" = "0" ]; then
             SCORE=$((SCORE + 6))
           fi
-
           if [ "${{ steps.testfiles.outputs.changed_tests }}" = "false" ]; then
             SCORE=$((SCORE + 2))
           fi
-
           if [ "${{ steps.diffsize.outputs.lines }}" -le 30 ]; then
             SCORE=$((SCORE + 2))
           fi
-
           echo "score=$SCORE" >> $GITHUB_OUTPUT
 
+      - name: Find PR number for branch
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = "${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.head_ref }}";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prs = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: "open",
+              head: `${owner}:${branch}`
+            });
+            const prNumber = prs.data.length ? prs.data[0].number : "";
+            core.setOutput("number", String(prNumber));
+
       - name: Comment score on PR
+        if: steps.pr.outputs.number != ''
         uses: actions/github-script@v7
         with:
           script: |
@@ -88,9 +124,9 @@ jobs:
             - Approx. lines changed: **${lines}**
             `;
 
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: Number("${{ steps.pr.outputs.number }}"),
               body
             });
