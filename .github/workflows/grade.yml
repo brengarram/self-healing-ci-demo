@@ -72,25 +72,25 @@ jobs:
           echo "score=$SCORE" >> $GITHUB_OUTPUT
 
       - name: Comment score on PR
-  uses: actions/github-script@v7
-  with:
-    script: |
-      const score = "${{ steps.score.outputs.score }}";
-      const exitCode = "${{ steps.tests.outputs.exit_code }}";
-      const changedTests = "${{ steps.testfiles.outputs.changed_tests }}";
-      const lines = "${{ steps.diffsize.outputs.lines }}";
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const score = "${{ steps.score.outputs.score }}";
+            const exitCode = "${{ steps.tests.outputs.exit_code }}";
+            const changedTests = "${{ steps.testfiles.outputs.changed_tests }}";
+            const lines = "${{ steps.diffsize.outputs.lines }}";
 
-      const body = `### ✅ Auto-grade result
-      Score: **${score} / 10**
+            const body = `### ✅ Auto-grade result
+            Score: **${score} / 10**
 
-      - Public tests exit code: **${exitCode}** (0 = pass)
-      - Tests folder modified: **${changedTests}** (false = no)
-      - Approx. lines changed: **${lines}}
-      `;
+            - Public tests exit code: **${exitCode}** (0 = pass)
+            - Tests folder modified: **${changedTests}** (false = no)
+            - Approx. lines changed: **${lines}**
+            `;
 
-      github.rest.issues.createComment({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        issue_number: context.issue.number,
-        body
-      });
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
