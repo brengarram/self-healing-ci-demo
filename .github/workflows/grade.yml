@@ -42,24 +42,34 @@ jobs:
           echo "exit_code=$?" >> $GITHUB_OUTPUT
           exit 0
 
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.pull_request.head.sha }}
+
       - name: Collect diff info
         id: diffinfo
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BASE="origin/main"
-            git fetch origin main --depth=1
+            BASE_BRANCH="main"
           else
-            BASE="origin/${{ github.base_ref }}"
-            git fetch origin ${{ github.base_ref }} --depth=1
+          BASE_BRANCH="${{ github.base_ref }}"
           fi
 
-          FILES=$(git diff --name-only $BASE...HEAD || true)
+          git fetch origin "$BASE_BRANCH" --depth=1
+
+          FILES=$(git diff --name-only origin/$BASE_BRANCH...HEAD || true)
+
           echo "changed_files<<EOF" >> $GITHUB_OUTPUT
           echo "$FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-          LINES=$(git diff --shortstat $BASE...HEAD | grep -o '[0-9]\+ insertion\|[0-9]\+ deletion' | awk '{sum += $1} END {print sum+0}')
-          echo "lines=$LINES" >> $GITHUB_OUTPUT
+          LINES=$(git diff --shortstat origin/$BASE_BRANCH...HEAD \
+          | grep -o '[0-9]\+ insertion\|[0-9]\+ deletion' \
+          | awk '{sum += $1} END {print sum+0}')
+
+          echo "lines=${LINES:-0}" >> $GITHUB_OUTPUT
 
       - name: Calculate score
         id: score
