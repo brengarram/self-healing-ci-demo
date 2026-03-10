@@ -34,8 +34,3 @@ def test_deduplicate_emails_removes_duplicates():
         "user@example.com",
         "admin@example.com"
     ]
-
-    assert result == [
-        "user@example.com",
-        "admin@example.com"
-    ]
