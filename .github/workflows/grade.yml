@@ -42,8 +42,8 @@ jobs:
           echo "exit_code=$?" >> $GITHUB_OUTPUT
           exit 0
 
-      - name: Check whether tests folder changed
-        id: testfiles
+      - name: Collect diff info
+        id: diffinfo
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             BASE="origin/main"
@@ -53,23 +53,10 @@ jobs:
             git fetch origin ${{ github.base_ref }} --depth=1
           fi
 
-          CHANGED=$(git diff --name-only $BASE...HEAD | grep '^tests/' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "changed_tests=false" >> $GITHUB_OUTPUT
-          else
-            echo "changed_tests=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Count changed lines
-        id: diffsize
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BASE="origin/main"
-            git fetch origin main --depth=1
-          else
-            BASE="origin/${{ github.base_ref }}"
-            git fetch origin ${{ github.base_ref }} --depth=1
-          fi
+          FILES=$(git diff --name-only $BASE...HEAD || true)
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
           LINES=$(git diff --shortstat $BASE...HEAD | grep -o '[0-9]\+ insertion\|[0-9]\+ deletion' | awk '{sum += $1} END {print sum+0}')
           echo "lines=$LINES" >> $GITHUB_OUTPUT
@@ -78,15 +65,25 @@ jobs:
         id: score
         run: |
           SCORE=0
+
+          # 6 pts → tests pass
           if [ "${{ steps.tests.outputs.exit_code }}" = "0" ]; then
             SCORE=$((SCORE + 6))
           fi
-          if [ "${{ steps.testfiles.outputs.changed_tests }}" = "false" ]; then
+
+          # 2 pts → diff ≤ 80 lines
+          if [ "${{ steps.diffinfo.outputs.lines }}" -le 80 ]; then
             SCORE=$((SCORE + 2))
           fi
-          if [ "${{ steps.diffsize.outputs.lines }}" -le 30 ]; then
+
+          # 2 pts → only src/ changed
+          FILES="${{ steps.diffinfo.outputs.changed_files }}"
+          NON_SRC=$(echo "$FILES" | grep -v '^src/' || true)
+
+          if [ -z "$NON_SRC" ]; then
             SCORE=$((SCORE + 2))
           fi
+
           echo "score=$SCORE" >> $GITHUB_OUTPUT
 
       - name: Find PR number for branch
@@ -97,12 +94,14 @@ jobs:
             const branch = "${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.head_ref }}";
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+
             const prs = await github.rest.pulls.list({
               owner,
               repo,
               state: "open",
               head: `${owner}:${branch}`
             });
+
             const prNumber = prs.data.length ? prs.data[0].number : "";
             core.setOutput("number", String(prNumber));
 
@@ -113,15 +112,18 @@ jobs:
           script: |
             const score = "${{ steps.score.outputs.score }}";
             const exitCode = "${{ steps.tests.outputs.exit_code }}";
-            const changedTests = "${{ steps.testfiles.outputs.changed_tests }}";
-            const lines = "${{ steps.diffsize.outputs.lines }}";
+            const lines = "${{ steps.diffinfo.outputs.lines }}";
+            const changedFiles = `${{ steps.diffinfo.outputs.changed_files }}`.trim();
 
             const body = `### ✅ Auto-grade result
             Score: **${score} / 10**
 
-            - Public tests exit code: **${exitCode}** (0 = pass)
-            - Tests folder modified: **${changedTests}** (false = no)
+            - Tests exit code: **${exitCode}** (0 = pass)
             - Approx. lines changed: **${lines}**
+            - Changed files:
+            \`\`\`
+            ${changedFiles || "No changed files detected"}
+            \`\`\`
             `;
 
             await github.rest.issues.createComment({
