@@ -1,0 +1,75 @@
+name: Codex Auto-fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to fix (e.g., feature/break-ci)"
+        required: true
+        default: "main"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests before fix (capture logs)
+        id: pretest
+        run: |
+          set +e
+          uv run pytest -q 2>&1 | tee pytest.log
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          exit 0
+
+      - name: Stop if tests already pass
+        if: steps.pretest.outputs.exit_code == '0'
+        run: |
+          echo "Tests already passing. No fix needed."
+          exit 0
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
+
+      - name: Run Codex auto-fix
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .codex/prompts/fix-ci.prompt.md
+          sandbox: workspace-write
+
+      - name: Run tests after fix
+        run: uv run pytest -q
+
+      - name: Commit and push patch
+        run: |
+          git config user.name "codex-autofix-bot"
+          git config user.email "codex-autofix-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "autofix: make CI green" || exit 0
+          git push origin HEAD:${{ github.event.inputs.branch }}
