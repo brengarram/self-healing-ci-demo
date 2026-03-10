@@ -2,21 +2,32 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to test"
+        required: true
+        default: "main"
 
 jobs:
   tests:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v1
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --dev
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run pytest -q
