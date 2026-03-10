@@ -3,12 +3,6 @@ name: Grade PR
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to grade"
-        required: true
-        default: "main"
 
 jobs:
   grade:
@@ -18,10 +12,11 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout target branch
+      - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -42,94 +37,70 @@ jobs:
           echo "exit_code=$?" >> $GITHUB_OUTPUT
           exit 0
 
-      - name: Checkout target branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.pull_request.head.sha }}
-
-      - name: Collect diff info
-        id: diffinfo
+      - name: Collect changed paths
+        id: paths
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BASE_BRANCH="main"
-          else
           BASE_BRANCH="${{ github.base_ref }}"
-          fi
-
           git fetch origin "$BASE_BRANCH" --depth=1
 
-          FILES=$(git diff --name-only origin/$BASE_BRANCH...HEAD || true)
+          CHANGED=$(git diff --name-only origin/$BASE_BRANCH...HEAD || true)
 
           echo "changed_files<<EOF" >> $GITHUB_OUTPUT
-          echo "$FILES" >> $GITHUB_OUTPUT
+          echo "$CHANGED" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-          LINES=$(git diff --shortstat origin/$BASE_BRANCH...HEAD \
-          | grep -o '[0-9]\+ insertion\|[0-9]\+ deletion' \
-          | awk '{sum += $1} END {print sum+0}')
+          TESTS_CHANGED=false
+          SRC_CHANGED=false
 
-          echo "lines=${LINES:-0}" >> $GITHUB_OUTPUT
+          if echo "$CHANGED" | grep -q '^tests/'; then
+            TESTS_CHANGED=true
+          fi
+
+          if echo "$CHANGED" | grep -q '^src/'; then
+            SRC_CHANGED=true
+          fi
+
+          echo "tests_changed=$TESTS_CHANGED" >> $GITHUB_OUTPUT
+          echo "src_changed=$SRC_CHANGED" >> $GITHUB_OUTPUT
 
       - name: Calculate score
         id: score
         run: |
           SCORE=0
 
-          # 6 pts → tests pass
+          # 6 pts -> tests pass
           if [ "${{ steps.tests.outputs.exit_code }}" = "0" ]; then
             SCORE=$((SCORE + 6))
           fi
 
-          # 2 pts → diff ≤ 80 lines
-          if [ "${{ steps.diffinfo.outputs.lines }}" -le 80 ]; then
+          # 2 pts -> tests/ was not modified
+          if [ "${{ steps.paths.outputs.tests_changed }}" = "false" ]; then
             SCORE=$((SCORE + 2))
           fi
 
-          # 2 pts → only src/ changed
-          FILES="${{ steps.diffinfo.outputs.changed_files }}"
-          NON_SRC=$(echo "$FILES" | grep -v '^src/' || true)
-
-          if [ -z "$NON_SRC" ]; then
+          # 2 pts -> src/ was modified
+          if [ "${{ steps.paths.outputs.src_changed }}" = "true" ]; then
             SCORE=$((SCORE + 2))
           fi
 
           echo "score=$SCORE" >> $GITHUB_OUTPUT
 
-      - name: Find PR number for branch
-        id: pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const branch = "${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.head_ref }}";
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-
-            const prs = await github.rest.pulls.list({
-              owner,
-              repo,
-              state: "open",
-              head: `${owner}:${branch}`
-            });
-
-            const prNumber = prs.data.length ? prs.data[0].number : "";
-            core.setOutput("number", String(prNumber));
-
       - name: Comment score on PR
-        if: steps.pr.outputs.number != ''
         uses: actions/github-script@v7
         with:
           script: |
             const score = "${{ steps.score.outputs.score }}";
             const exitCode = "${{ steps.tests.outputs.exit_code }}";
-            const lines = "${{ steps.diffinfo.outputs.lines }}";
-            const changedFiles = `${{ steps.diffinfo.outputs.changed_files }}`.trim();
+            const testsChanged = "${{ steps.paths.outputs.tests_changed }}";
+            const srcChanged = "${{ steps.paths.outputs.src_changed }}";
+            const changedFiles = `${{ steps.paths.outputs.changed_files }}`.trim();
 
             const body = `### ✅ Auto-grade result
             Score: **${score} / 10**
 
             - Tests exit code: **${exitCode}** (0 = pass)
-            - Approx. lines changed: **${lines}**
+            - Tests folder modified: **${testsChanged}**
+            - Source folder modified: **${srcChanged}**
             - Changed files:
             \`\`\`
             ${changedFiles || "No changed files detected"}
@@ -139,6 +110,6 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: Number("${{ steps.pr.outputs.number }}"),
+              issue_number: context.issue.number,
               body
             });

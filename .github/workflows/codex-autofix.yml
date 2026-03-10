@@ -67,6 +67,13 @@ jobs:
       - name: Run tests after fix
         run: uv run pytest -q
 
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+        ref: ${{ github.event.inputs.branch }}
+        token: ${{ secrets.PAT_TOKEN }}
+        fetch-depth: 0
+
       - name: Commit and push patch
         run: |
           git config user.name "codex-autofix-bot"
@@ -74,6 +81,7 @@ jobs:
           git add -A
           git commit -m "autofix: make CI green" || exit 0
           git push origin HEAD:${{ github.event.inputs.branch }}
+
       - name: Re-dispatch CI on fixed branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
