@@ -21,7 +21,7 @@ jobs:
       - name: Checkout target branch
         uses: actions/checkout@v4
         with:
-        ref: ${{ github.event.inputs.branch }}
+          ref: ${{ github.event.inputs.branch }}
         token: ${{ secrets.PAT_TOKEN }}
         fetch-depth: 0
 
