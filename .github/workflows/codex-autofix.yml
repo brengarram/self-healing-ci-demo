@@ -45,7 +45,7 @@ jobs:
           exit 0
 
       - name: Stop if tests already pass
-        if: steps.pretest.outputs.exit_code == '0'
+        if: ${{ steps.pretest.outputs.exit_code == '0' }}
         run: |
           echo "Tests already passing. No fix needed."
           exit 0
