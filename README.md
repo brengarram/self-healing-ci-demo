@@ -1,17 +1,16 @@
 # Self-Healing CI Demo
 
-This repository demonstrates a **self-healing CI workflow** using GitHub
-Actions and Codex.
+This repository demonstrates a **self-healing CI workflow** using GitHub Actions and Codex.
 
-The project simulates a development workflow where: 1. A pull request
-triggers CI tests. 2. If the tests fail, a workflow can invoke **Codex**
-to automatically analyze the failures. 3. Codex attempts to fix the
-code. 4. The workflow reruns the tests and commits the fix back to the
-branch. 5. A grading workflow evaluates the pull request based on
-predefined criteria.
+The project simulates a development workflow where:
 
-The goal is to showcase how **AI-assisted automation** can help maintain
-code quality and speed up debugging in CI pipelines.
+1. A pull request triggers CI tests.  
+2. If the tests fail, a workflow invokes Codex to automatically analyze the failures.  
+3. Codex attempts to fix the code.  
+4. The workflow reruns the tests and commits the fix back to the branch.  
+5. A grading workflow evaluates the pull request based on predefined criteria.
+
+The goal is to showcase how **AI-assisted automation** can help maintain code quality and speed up debugging in CI pipelines.
 
 ------------------------------------------------------------------------
 
@@ -104,11 +103,13 @@ If the fix succeeds, the CI pipeline should turn green.
 The **grade workflow** runs automatically on pull request updates and
 calculates a score.
 
+The pull request is automatically graded based on the following criteria:
+
 Scoring rules:
 
--   **6 points** if tests pass
--   **2 points** if the `tests/` folder was not modified
--   **2 points** if the code diff remains small
+- **6 pts** → All tests pass  
+- **2 pts** → The `tests/` directory was not modified  
+- **2 pts** → The `src/` directory was modified 
 
 The workflow posts the score as a comment on the pull request.
 
