@@ -3,6 +3,12 @@ name: Grade PR
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to grade"
+        required: true
+        default: "main"
 
 jobs:
   grade:
