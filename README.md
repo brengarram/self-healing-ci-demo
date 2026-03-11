@@ -117,7 +117,7 @@ The workflow posts the score as a comment on the pull request.
 ------------------------------------------------------------------------
 
 
-## AI Auto-fix Summary Comment
+# AI Auto-fix Summary Comment
 
 After the fix is applied and validated, the workflow adds a comment to the Pull Request that includes:
 
