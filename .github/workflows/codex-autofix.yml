@@ -82,10 +82,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api \
-            -X POST \
-            repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches \
-            -f ref=main \
-            -f inputs[branch]=${{ github.event.inputs.branch }}
+          -X POST \
+          repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches \
+          -f ref=${{ github.event.inputs.branch }} \
+          -f inputs[branch]=${{ github.event.inputs.branch }}
 
       - name: Re-dispatch Grade on fixed branch
         env:
@@ -94,5 +94,5 @@ jobs:
           gh api \
             -X POST \
             repos/${{ github.repository }}/actions/workflows/grade.yml/dispatches \
-            -f ref=main \
+            -f ref=${{ github.event.inputs.branch }} \
             -f inputs[branch]=${{ github.event.inputs.branch }}
