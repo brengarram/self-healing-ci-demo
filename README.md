@@ -8,7 +8,8 @@ The project simulates a development workflow where:
 2. If the tests fail, a workflow invokes Codex to automatically analyze the failures.  
 3. Codex attempts to fix the code.  
 4. The workflow reruns the tests and commits the fix back to the branch.  
-5. A grading workflow evaluates the pull request based on predefined criteria.
+4. The new commit triggers **CI and Grade again**.
+5. After the second run, a **PR comment is posted summarizing the changes made by the AI agent**.
 
 The goal is to showcase how **AI-assisted automation** can help maintain code quality and speed up debugging in CI pipelines.
 
@@ -112,6 +113,21 @@ Scoring rules:
 - **2 pts** → The `src/` directory was modified 
 
 The workflow posts the score as a comment on the pull request.
+
+------------------------------------------------------------------------
+
+
+## AI Auto-fix Summary Comment
+
+After the fix is applied and validated, the workflow adds a comment to the Pull Request that includes:
+
+- The **AI-generated commit message**
+- The **files modified by the agent**
+- A **diff summary showing the changes introduced**
+- A short **patch preview of the modifications**
+
+This provides transparency so reviewers can quickly understand **what the AI agent changed and why the CI pipeline passed after the fix**.
+
 
 ------------------------------------------------------------------------
 
