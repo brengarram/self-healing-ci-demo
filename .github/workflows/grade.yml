@@ -120,7 +120,7 @@ jobs:
               body
             });
 
-              - name: Detect autofix commit
+      - name: Detect autofix commit
         id: autofix
         run: |
           LAST_MSG=$(git log -1 --pretty=%s)
