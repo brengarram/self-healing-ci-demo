@@ -5,7 +5,7 @@ def normalize_email(email: str) -> str:
 
 def is_valid_email(email: str) -> bool:
     normalized = normalize_email(email)
-    pattern = r"^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$"
+    pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
     return bool(re.match(pattern, normalized))
 
 
